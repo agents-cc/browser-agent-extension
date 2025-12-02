@@ -555,7 +555,7 @@ function getActionFromToolName(toolName: string): string {
  * 启动 WebSocket 服务器
  */
 function startWebSocketServer(): WebSocketServer {
-  const wss = new WebSocketServer({ port: WS_PORT });
+  const wss = new WebSocketServer({ host: '0.0.0.0', port: WS_PORT });
 
   wss.on('connection', (ws) => {
     console.error(`[MCP Server] Browser extension connected`);

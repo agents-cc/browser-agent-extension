@@ -2,213 +2,69 @@
 
 [中文文档](./README_CN.md)
 
-An open-source Chrome extension that enables AI agents to control your browser through the Model Context Protocol (MCP).
+A 25KB MCP Server + 60KB browser extension that enables your Claude Code / Codex / Gemini CLI / Cursor and other AI Agents to seamlessly control your browser.
+
+MIT Licensed Open Source
+
+Ditch the bulky Playwright. Ditch the bloated MCP Servers stuffed with complex features.
 
 > Inspired by [Antigravity Browser Extension](https://chromewebstore.google.com/detail/antigravity-browser-exten/eeijfnjmjelapkebgockoeaadonbchdd) by Google - a fantastic tool for browser automation. This project is an open-source alternative that works with any MCP-compatible AI agent (Claude Code, Cursor, Gemini CLI, and more).
 
-> **Note:** The extension has been submitted to Chrome Web Store and is pending review. Before approval, you can build it yourself and load it via Developer Mode.
+> **Note:** The extension has been submitted to Chrome Web Store and is pending review. Before approval, please use the "Manual Installation" method to install the extension.
 
-## Overview
+## Architecture
 
-Browser Agent Extension bridges AI assistants (Claude Code, Cursor, Gemini CLI, etc.) with your Chrome browser, enabling automated web interactions like navigation, clicking, typing, screenshots, and more.
+![Browser Agent Extension](assets/702e311d-c491-4bf4-a56e-9fd353852974.jpg)
 
-```
-┌─────────────────────────────────────┐
-│  AI Client (Claude Code / Cursor)   │
-│            MCP Client               │
-└──────────────────┬──────────────────┘
-                   │ stdio (JSON-RPC)
-                   ▼
-┌─────────────────────────────────────┐
-│         MCP Server (Node.js)        │
-│         WebSocket Server :3026      │
-└──────────────────┬──────────────────┘
-                   │ WebSocket
-                   ▼
-┌─────────────────────────────────────┐
-│        Chrome Extension             │
-│  Side Panel ←→ Service Worker       │
-│              ↓                      │
-│     Chrome DevTools Protocol        │
-└─────────────────────────────────────┘
-```
-
-## Features
-
-- **Full Browser Control** - Navigate, click, type, scroll, and interact with any webpage
-- **Screenshot Capture** - Capture viewport or full-page screenshots
-- **Network Monitoring** - Capture and filter XHR/Fetch requests
-- **Multi-Tab Management** - Switch between tabs and manage sessions
-- **Smart Waiting** - Wait for elements, page loads, or custom conditions
-- **Dialog Handling** - Handle alerts, confirms, and prompts automatically
-- **Console Capture** - Monitor page console logs
-- **File Uploads** - Programmatic file input support
-
-## Installation
+## Quick Start
 
 ### 1. Install the Chrome Extension
 
 **Option A: Chrome Web Store (Recommended)**
 
-Install from [Chrome Web Store](#) (link coming soon)
+Search for "Browser Agent Extension" in the Chrome Web Store and install.
 
-**Option B: Load Unpacked (Development)**
+**Option B: Manual Installation**
 
-1. Clone this repository
-2. Build the extension:
-   ```bash
-   cd extension
-   npm install
-   npm run build
-   ```
+1. Download [browser-agent-extension-v1.0.1.zip](https://github.com/agents-cc/browser-agent-extension/releases/download/v1.0.1/browser-agent-extension-v1.0.1.zip)
+2. Extract to any folder
 3. Open Chrome and go to `chrome://extensions/`
 4. Enable "Developer mode"
-5. Click "Load unpacked" and select the `extension/dist` folder
+5. Click "Load unpacked" and select the extracted folder
 
-### 2. Build the MCP Server
+### 2. Install the MCP Service
 
-```bash
-cd mcp-server
-npm install
-npm run build
-```
+You can configure it manually, or simply copy the following prompt to Claude Code / Codex / Gemini CLI / Cursor and let it install for you:
 
-### 3. Configure Your AI Client
+---
 
-#### Claude Code
+**Prompt:**
 
-Add to your Claude Code MCP settings (`~/.claude/claude_desktop_config.json` or use `claude mcp add`):
+Please help me install and configure the browser-agent MCP service:
 
-```json
-{
-  "mcpServers": {
-    "browser-agent": {
-      "command": "node",
-      "args": ["/absolute/path/to/browser-agent-extension/mcp-server/dist/index.js"]
-    }
-  }
-}
-```
+1. Install the npm package globally: `npm install -g browser-agent-extension-mcp`
+2. Configure MCP for the current project (create or update `.mcp.json`):
+   ```json
+   {
+     "mcpServers": {
+       "browser-agent": {
+         "type": "stdio",
+         "command": "browser-agent-extension-mcp"
+       }
+     }
+   }
+   ```
 
-Or use the CLI:
+After installation, tell me how to reload the MCP configuration.
 
-```bash
-claude mcp add browser-agent node /absolute/path/to/browser-agent-extension/mcp-server/dist/index.js
-```
+---
 
-#### Cursor
+## Further Reading
 
-Add to Cursor's MCP configuration (Settings → MCP Servers):
-
-```json
-{
-  "browser-agent": {
-    "command": "node",
-    "args": ["/absolute/path/to/browser-agent-extension/mcp-server/dist/index.js"]
-  }
-}
-```
-
-#### Gemini CLI
-
-Add to your Gemini CLI settings file:
-
-```json
-{
-  "mcpServers": {
-    "browser-agent": {
-      "command": "node",
-      "args": ["/absolute/path/to/browser-agent-extension/mcp-server/dist/index.js"]
-    }
-  }
-}
-```
-
-#### Other MCP Clients
-
-Any MCP-compatible client can use this server. Configure it to run:
-
-```bash
-node /path/to/browser-agent-extension/mcp-server/dist/index.js
-```
-
-## Usage
-
-1. **Start the MCP Server** - Your AI client will start it automatically when configured
-2. **Open Chrome** - Click the extension icon to open the Side Panel
-3. **Connect** - The Side Panel will connect to the MCP server (localhost:3026)
-4. **Automate** - Ask your AI assistant to control the browser!
-
-### Example Prompts
-
-```
-"Go to github.com and search for 'browser automation'"
-
-"Fill out the contact form on this page with test data"
-
-"Take a screenshot of the current page"
-
-"Click the login button and enter my credentials"
-
-"Scroll down and find all product prices on this page"
-```
-
-## Available MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `browser_navigate` | Navigate to a URL |
-| `browser_click` | Click an element or coordinates |
-| `browser_type` | Type text into an element |
-| `browser_scroll` | Scroll the page |
-| `browser_screenshot` | Capture a screenshot |
-| `browser_extract` | Extract text/HTML from elements |
-| `browser_evaluate` | Execute JavaScript |
-| `browser_get_page_info` | Get current page URL and title |
-| `browser_get_tabs` | List all open tabs |
-| `browser_switch_tab` | Switch to a specific tab |
-| `browser_press_key` | Press keyboard keys |
-| `browser_select_option` | Select dropdown options |
-| `browser_go_back/forward` | Navigate history |
-| `browser_reload` | Reload the page |
-| `browser_wait_for_*` | Wait for elements/conditions |
-| `browser_*_network` | Network request monitoring |
-| `browser_*_dialog` | Dialog handling |
-| `browser_hover/double_click/right_click` | Advanced mouse actions |
-| `browser_lock/unlock` | Lock page during automation |
-
-## Project Structure
-
-```
-browser-agent-extension/
-├── extension/           # Chrome Extension
-│   ├── src/
-│   │   ├── background/  # Service Worker
-│   │   ├── sidepanel/   # Side Panel UI
-│   │   ├── content/     # Content Script
-│   │   └── cdp/         # CDP wrapper
-│   └── manifest.json
-│
-└── mcp-server/          # MCP Server
-    └── src/
-        └── index.ts     # Server entry point
-```
-
-## Privacy
-
-This extension operates entirely locally:
-
-- No data collection
-- No external servers
-- WebSocket connects only to localhost
-- All automation happens on your machine
-
-See [Privacy Policy](./privacy.md) for details.
+- [Architecture Design](docs/architecture.md)
+- [Capabilities List](docs/capabilities.md)
+- [Optimization Todo List](docs/todos.md)
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.

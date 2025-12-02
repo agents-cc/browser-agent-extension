@@ -3,9 +3,37 @@
  * 连接 MCP Server，转发请求到 Service Worker
  */
 
-const WS_URL = 'ws://127.0.0.1:3026';
+const DEFAULT_HOST = '127.0.0.1';
+const DEFAULT_PORT = 3026;
 const RECONNECT_DELAY = 3000;
 const MAX_RETRIES = 1;
+const STORAGE_KEY = 'browserAgentSettings';
+
+interface Settings {
+  host: string;
+  port: number;
+}
+
+function loadSettings(): Settings {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch {
+    // ignore
+  }
+  return { host: DEFAULT_HOST, port: DEFAULT_PORT };
+}
+
+function saveSettings(settings: Settings): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+}
+
+function getWsUrl(): string {
+  const settings = loadSettings();
+  return `ws://${settings.host}:${settings.port}`;
+}
 
 interface WSRequest {
   type: 'REQUEST';
@@ -28,6 +56,7 @@ interface WSResponse {
 const statusDot = document.getElementById('statusDot') as HTMLDivElement;
 const statusText = document.getElementById('statusText') as HTMLSpanElement;
 const btnReconnect = document.getElementById('btnReconnect') as HTMLButtonElement;
+const btnDisconnect = document.getElementById('btnDisconnect') as HTMLButtonElement;
 
 // DOM 元素 - 日志
 const logContainer = document.getElementById('logContainer') as HTMLDivElement;
@@ -36,6 +65,10 @@ const btnClear = document.getElementById('btnClear') as HTMLButtonElement;
 // DOM 元素 - 标签切换
 const tabs = document.querySelectorAll('.tab-icon') as NodeListOf<HTMLButtonElement>;
 const panels = document.querySelectorAll('.panel') as NodeListOf<HTMLDivElement>;
+
+// DOM 元素 - 设置
+const inputHost = document.getElementById('inputHost') as HTMLInputElement;
+const inputPort = document.getElementById('inputPort') as HTMLInputElement;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: number | null = null;
@@ -91,17 +124,39 @@ function updateStatus(status: 'connected' | 'connecting' | 'disconnected'): void
       statusDot.classList.add('connected');
       statusText.textContent = 'Connected';
       btnReconnect.style.display = 'none';
+      btnDisconnect.style.display = 'inline-block';
+      setSettingsEnabled(false);
       break;
     case 'connecting':
       statusDot.classList.add('connecting');
       statusText.textContent = 'Connecting...';
       btnReconnect.disabled = true;
+      btnDisconnect.style.display = 'none';
+      setSettingsEnabled(false);
       break;
     case 'disconnected':
       statusText.textContent = 'Disconnected';
       btnReconnect.style.display = 'inline-block';
       btnReconnect.disabled = false;
+      btnDisconnect.style.display = 'none';
+      setSettingsEnabled(true);
       break;
+  }
+}
+
+/**
+ * 设置输入框启用/禁用状态
+ */
+function setSettingsEnabled(enabled: boolean): void {
+  inputHost.disabled = !enabled;
+  inputPort.disabled = !enabled;
+
+  if (enabled) {
+    inputHost.style.opacity = '1';
+    inputPort.style.opacity = '1';
+  } else {
+    inputHost.style.opacity = '0.5';
+    inputPort.style.opacity = '0.5';
   }
 }
 
@@ -113,10 +168,16 @@ function connect(): void {
     return;
   }
 
+  // 保存当前设置
+  const host = inputHost.value.trim() || DEFAULT_HOST;
+  const port = parseInt(inputPort.value, 10) || DEFAULT_PORT;
+  saveSettings({ host, port });
+
   updateStatus('connecting');
 
+  const wsUrl = getWsUrl();
   try {
-    ws = new WebSocket(WS_URL);
+    ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       console.log('[SidePanel] WebSocket connected');
@@ -214,10 +275,39 @@ function manualReconnect(): void {
 }
 
 /**
+ * 断开连接
+ */
+function disconnect(): void {
+  // 取消自动重连
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  retryCount = MAX_RETRIES; // 阻止自动重连
+
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+
+  updateStatus('disconnected');
+  addLog('system', 'Manually disconnected', 'success');
+}
+
+/**
  * 清空日志
  */
 function clearLogs(): void {
   logContainer.innerHTML = '<div class="empty-log">Waiting for tasks...</div>';
+}
+
+/**
+ * 初始化设置输入框
+ */
+function initSettings(): void {
+  const settings = loadSettings();
+  inputHost.value = settings.host;
+  inputPort.value = String(settings.port);
 }
 
 // 事件监听 - 标签切换
@@ -233,8 +323,12 @@ tabs.forEach(tab => {
 // 事件监听 - 日志
 btnClear.addEventListener('click', clearLogs);
 btnReconnect.addEventListener('click', manualReconnect);
+btnDisconnect.addEventListener('click', disconnect);
 
-// 初始化
+// 初始化设置
+initSettings();
+
+// 初始化连接
 connect();
 
 console.log('[SidePanel] Side Panel loaded');

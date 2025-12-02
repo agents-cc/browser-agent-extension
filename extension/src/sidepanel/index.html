@@ -118,6 +118,23 @@
       cursor: not-allowed;
     }
 
+    .btn-disconnect {
+      padding: 4px 10px;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 4px;
+      color: #ef4444;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-left: 8px;
+    }
+
+    .btn-disconnect:hover {
+      background: rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.5);
+    }
+
     /* 标签图标 */
     .tab-icon {
       background: transparent;
@@ -355,6 +372,7 @@
         <div class="indicator-dot" id="statusDot"></div>
         <span class="status-text" id="statusText">Disconnected</span>
         <button class="btn-reconnect" id="btnReconnect">Reconnect</button>
+        <button class="btn-disconnect" id="btnDisconnect" style="display: none;">Disconnect</button>
       </div>
     </div>
 
@@ -394,8 +412,22 @@
       <!-- Settings 面板 -->
       <div class="panel" id="panelSettings">
         <div class="settings-section">
+          <div class="settings-title">MCP Server Connection</div>
+          <div class="form-group">
+            <label class="form-label">Host Address</label>
+            <input type="text" class="form-input" id="inputHost" placeholder="127.0.0.1" value="127.0.0.1">
+            <div class="form-hint">IP address to connect to MCP Server (only editable when disconnected)</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Port</label>
+            <input type="number" class="form-input" id="inputPort" placeholder="3026" value="3026">
+            <div class="form-hint">WebSocket port (default: 3026)</div>
+          </div>
+        </div>
+
+        <div class="settings-section">
           <div class="settings-title">About</div>
-          <a href="https://github.com/agents-cc/browser-agent-extension" target="_blank"
+          <a href="https://github.com/anthropics/claude-code" target="_blank"
              style="display: inline-flex; align-items: center; gap: 8px; color: #94a3b8; font-size: 13px; text-decoration: none; transition: color 0.2s;"
              onmouseover="this.style.color='#00d4ff'" onmouseout="this.style.color='#94a3b8'">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
