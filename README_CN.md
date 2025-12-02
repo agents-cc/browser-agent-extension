@@ -4,6 +4,10 @@
 
 一个开源的 Chrome 扩展，让 AI 助手通过 MCP（Model Context Protocol）协议控制你的浏览器。
 
+> 灵感来源于 Google 的 [Antigravity 浏览器扩展](https://chromewebstore.google.com/detail/antigravity-browser-exten/eeijfnjmjelapkebgockoeaadonbchdd) —— 一个非常好用的浏览器自动化工具。本项目是其开源复刻版，支持任意兼容 MCP 协议的 AI Agent（Claude Code、Cursor、Gemini CLI 等）。
+
+> **提示：** 插件已提交 Chrome Web Store 审核，审核通过前可以自己构建后通过开发者模式加载使用。
+
 ## 概述
 
 Browser Agent Extension 将 AI 助手（Claude Code、Cursor、Gemini CLI 等）与 Chrome 浏览器连接起来，实现自动化网页操作，如导航、点击、输入、截图等。

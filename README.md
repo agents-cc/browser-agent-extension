@@ -4,6 +4,10 @@
 
 An open-source Chrome extension that enables AI agents to control your browser through the Model Context Protocol (MCP).
 
+> Inspired by [Antigravity Browser Extension](https://chromewebstore.google.com/detail/antigravity-browser-exten/eeijfnjmjelapkebgockoeaadonbchdd) by Google - a fantastic tool for browser automation. This project is an open-source alternative that works with any MCP-compatible AI agent (Claude Code, Cursor, Gemini CLI, and more).
+
+> **Note:** The extension has been submitted to Chrome Web Store and is pending review. Before approval, you can build it yourself and load it via Developer Mode.
+
 ## Overview
 
 Browser Agent Extension bridges AI assistants (Claude Code, Cursor, Gemini CLI, etc.) with your Chrome browser, enabling automated web interactions like navigation, clicking, typing, screenshots, and more.
