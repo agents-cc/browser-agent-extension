@@ -1,6 +1,6 @@
 {
   "name": "agents-cc-browser-extension",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "AI Agent 浏览器控制扩展 - 通过 HTTP API 接收指令，使用 CDP 控制浏览器",
   "type": "module",
   "scripts": {

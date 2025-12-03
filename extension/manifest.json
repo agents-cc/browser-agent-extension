@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Browser Agent Extension",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "AI Agent browser control extension - MCP + WebSocket",
 
   "permissions": [
