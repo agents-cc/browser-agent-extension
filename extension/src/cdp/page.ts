@@ -214,7 +214,16 @@ export class Page {
     );
 
     if (result.exceptionDetails) {
-      throw new Error(result.exceptionDetails.text);
+      // 构建详细的错误信息
+      const details = result.exceptionDetails;
+      const errorMessage = [
+        details.text,
+        details.exception?.description ? `Description: ${details.exception.description}` : '',
+        details.stackTrace ? `Stack: ${JSON.stringify(details.stackTrace, null, 2)}` : '',
+        `Line: ${details.lineNumber}, Column: ${details.columnNumber}`,
+      ].filter(Boolean).join('\n');
+
+      throw new Error(errorMessage);
     }
 
     return result.result.value as T;
@@ -255,22 +264,91 @@ export class Page {
 
   /**
    * 通过选择器点击元素
+   * 支持富文本编辑器和 contenteditable 元素
    */
   async clickElement(selector: string): Promise<{ tagName: string; text: string }> {
-    // 获取元素中心坐标
-    const elementInfo = await this.evaluate<{ x: number; y: number; tagName: string; text: string }>(`
+    // 获取元素信息并确保可点击
+    const elementInfo = await this.evaluate<{
+      x: number;
+      y: number;
+      tagName: string;
+      text: string;
+      isVisible: boolean;
+      isInViewport: boolean;
+      actualSelector: string;
+    }>(`
       (function() {
-        const el = document.querySelector(${JSON.stringify(selector)});
-        if (!el) throw new Error('Element not found: ${selector}');
+        let el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) {
+          throw new Error('Element not found: ${selector}');
+        }
+
+        // 对于富文本编辑器容器，尝试找到实际的可编辑区域
+        const editableSelectors = [
+          '[contenteditable="true"]',
+          '.vditor-ir', '.vditor-sv', '.vditor-wysiwyg',
+          '.ProseMirror', '.ql-editor', '.cke_editable',
+        ];
+
+        // 如果当前元素不是可交互元素，尝试找到内部的可交互元素
+        const isInteractive = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ||
+          el.tagName === 'BUTTON' || el.tagName === 'A' ||
+          el.isContentEditable || el.getAttribute('contenteditable') === 'true' ||
+          el.onclick || el.getAttribute('role') === 'button';
+
+        if (!isInteractive) {
+          for (const editableSelector of editableSelectors) {
+            const editable = el.querySelector(editableSelector);
+            if (editable) {
+              el = editable;
+              break;
+            }
+          }
+        }
+
+        // 检查可见性
+        const style = window.getComputedStyle(el);
+        const isVisible = style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          style.opacity !== '0';
+
+        if (!isVisible) {
+          throw new Error('Element is not visible: ${selector}');
+        }
+
+        // 滚动元素进入视口
+        el.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+
+        // 获取最新的位置
         const rect = el.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+
+        // 检查是否在视口内
+        const isInViewport = x >= 0 && y >= 0 &&
+          x <= window.innerWidth && y <= window.innerHeight;
+
+        // 检查点击位置是否被其他元素遮挡
+        const elementAtPoint = document.elementFromPoint(x, y);
+        if (elementAtPoint && !el.contains(elementAtPoint) && elementAtPoint !== el) {
+          // 被遮挡了，尝试点击遮挡元素（可能是蒙层需要关闭）
+          console.warn('Element is covered by:', elementAtPoint.tagName, elementAtPoint.className);
+        }
+
         return {
-          x: rect.left + rect.width / 2,
-          y: rect.top + rect.height / 2,
+          x,
+          y,
           tagName: el.tagName,
-          text: el.textContent?.slice(0, 100) || ''
+          text: el.textContent?.slice(0, 100) || '',
+          isVisible,
+          isInViewport,
+          actualSelector: ${JSON.stringify(selector)}
         };
       })()
     `);
+
+    // 等待一下确保滚动完成
+    await this.sleep(50);
 
     await this.clickAt(elementInfo.x, elementInfo.y);
 
@@ -298,26 +376,128 @@ export class Page {
 
   /**
    * 在元素中输入文本
+   * 支持：input、textarea、contenteditable 元素和富文本编辑器（Vditor、TinyMCE 等）
    */
   async typeInElement(selector: string, text: string, options: { clearFirst?: boolean; delay?: number } = {}): Promise<void> {
+    // 检测元素类型并获取实际可输入的元素
+    const elementInfo = await this.evaluate<{
+      found: boolean;
+      actualSelector: string;
+      elementType: 'input' | 'textarea' | 'contenteditable' | 'unknown';
+      tagName: string;
+    }>(`
+      (function() {
+        let el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) {
+          return { found: false, actualSelector: '', elementType: 'unknown', tagName: '' };
+        }
+
+        const tagName = el.tagName.toUpperCase();
+
+        // 1. 原生 input/textarea
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA') {
+          return { found: true, actualSelector: ${JSON.stringify(selector)}, elementType: tagName.toLowerCase(), tagName };
+        }
+
+        // 2. 直接是 contenteditable
+        if (el.isContentEditable || el.getAttribute('contenteditable') === 'true') {
+          return { found: true, actualSelector: ${JSON.stringify(selector)}, elementType: 'contenteditable', tagName };
+        }
+
+        // 3. 查找内部的 contenteditable 元素（富文本编辑器场景）
+        // 常见的富文本编辑器选择器
+        const editableSelectors = [
+          '[contenteditable="true"]',
+          '.vditor-ir',                    // Vditor IR 模式
+          '.vditor-sv',                    // Vditor SV 模式
+          '.vditor-wysiwyg',               // Vditor WYSIWYG 模式
+          '.ProseMirror',                  // ProseMirror / TipTap
+          '.ql-editor',                    // Quill
+          '.tox-edit-area iframe',         // TinyMCE
+          '.cke_editable',                 // CKEditor
+          '.CodeMirror-code',              // CodeMirror
+          '.monaco-editor .view-lines',    // Monaco Editor
+        ];
+
+        for (const editableSelector of editableSelectors) {
+          const editable = el.querySelector(editableSelector);
+          if (editable) {
+            // 为找到的元素生成唯一选择器
+            editable.__browserAgentTemp = true;
+            return {
+              found: true,
+              actualSelector: '[__browserAgentTemp="true"]',
+              elementType: 'contenteditable',
+              tagName: editable.tagName
+            };
+          }
+        }
+
+        // 4. 查找任何 contenteditable 子元素
+        const anyEditable = el.querySelector('[contenteditable="true"]');
+        if (anyEditable) {
+          anyEditable.__browserAgentTemp = true;
+          return {
+            found: true,
+            actualSelector: '[__browserAgentTemp="true"]',
+            elementType: 'contenteditable',
+            tagName: anyEditable.tagName
+          };
+        }
+
+        return { found: false, actualSelector: '', elementType: 'unknown', tagName };
+      })()
+    `);
+
+    if (!elementInfo.found) {
+      throw new Error(`Cannot find editable element for selector: ${selector}. Make sure the element is an input, textarea, or contenteditable element.`);
+    }
+
     // 先点击元素获取焦点
-    await this.clickElement(selector);
+    await this.clickElement(elementInfo.actualSelector);
 
     // 清空现有内容
     if (options.clearFirst) {
-      await this.evaluate(`
-        (function() {
-          const el = document.querySelector(${JSON.stringify(selector)});
-          if (el) {
-            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+      if (elementInfo.elementType === 'input' || elementInfo.elementType === 'textarea') {
+        // 对于 input/textarea，使用全选+删除
+        await this.evaluate(`
+          (function() {
+            const el = document.querySelector(${JSON.stringify(elementInfo.actualSelector)});
+            if (el) {
+              el.select();
               el.value = '';
-            } else {
-              el.textContent = '';
+              el.dispatchEvent(new Event('input', { bubbles: true }));
             }
-          }
-        })()
-      `);
+          })()
+        `);
+      } else if (elementInfo.elementType === 'contenteditable') {
+        // 对于 contenteditable，使用全选+删除
+        await this.evaluate(`
+          (function() {
+            const el = document.querySelector(${JSON.stringify(elementInfo.actualSelector)});
+            if (el) {
+              el.focus();
+              // 方法1：使用 Selection API 全选然后删除
+              const selection = window.getSelection();
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+          })()
+        `);
+        // 删除选中内容
+        await this.pressKey('Backspace');
+      }
     }
+
+    // 清理临时标记
+    await this.evaluate(`
+      (function() {
+        const el = document.querySelector('[__browserAgentTemp="true"]');
+        if (el) el.removeAttribute('__browserAgentTemp');
+      })()
+    `);
 
     // 输入文本
     await this.type(text, options.delay);

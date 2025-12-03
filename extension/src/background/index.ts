@@ -111,7 +111,11 @@ async function executeAction(action: string, params: Record<string, unknown>): P
     }
 
     case 'click': {
-      if (params.selector) {
+      // 支持通过索引点击
+      if (params.index !== undefined) {
+        const result = await clickByIndex(params.index as number);
+        return result;
+      } else if (params.selector) {
         const result = await page.clickElement(params.selector as string);
         return { clicked: true, element: result };
       } else if (params.x !== undefined && params.y !== undefined) {
@@ -121,14 +125,22 @@ async function executeAction(action: string, params: Record<string, unknown>): P
         });
         return { clicked: true };
       }
-      throw new Error('selector or coordinates required');
+      throw new Error('index, selector, or coordinates required');
     }
 
     case 'type': {
       const text = params.text as string;
       if (!text) throw new Error('text is required');
 
-      if (params.selector) {
+      // 支持通过索引输入
+      if (params.index !== undefined) {
+        const result = await typeByIndex(
+          params.index as number,
+          text,
+          params.clearFirst as boolean
+        );
+        return { typed: true, length: text.length, ...result };
+      } else if (params.selector) {
         await page.typeInElement(params.selector as string, text, {
           clearFirst: params.clearFirst as boolean,
           delay: params.delay as number,
@@ -196,6 +208,19 @@ async function executeAction(action: string, params: Record<string, unknown>): P
     case 'get_page_info': {
       const info = await page.getPageInfo();
       return info;
+    }
+
+    case 'get_dom_tree': {
+      // 新版：紧凑格式 DOM 树
+      const domTree = await getDomTree(params);
+      return domTree;
+    }
+
+    case 'get_dom_tree_full': {
+      // 完整版：JSON 格式 DOM 树
+      const selector = params.selector as string | undefined;
+      const domTree = await getDomTreeFull(selector);
+      return domTree;
     }
 
     case 'get_tabs': {
@@ -469,6 +494,155 @@ async function updateOverlayStatus(status: string, shimmer?: boolean): Promise<v
   } catch {
     // 忽略错误
   }
+}
+
+/**
+ * 通过索引点击元素
+ */
+async function clickByIndex(index: number): Promise<{ clicked: boolean; tagName?: string; text?: string }> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    throw new Error('No active tab found');
+  }
+
+  // 确保 content script 已注入
+  await ensureContentScriptInjected(tab.id);
+
+  const response = await chrome.tabs.sendMessage(tab.id, {
+    type: 'CLICK_BY_INDEX',
+    payload: { index },
+  });
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to click element by index');
+  }
+
+  return {
+    clicked: true,
+    tagName: response.data.tagName,
+    text: response.data.text,
+  };
+}
+
+/**
+ * 通过索引在元素中输入文本
+ */
+async function typeByIndex(
+  index: number,
+  text: string,
+  clearFirst?: boolean
+): Promise<{ tagName?: string }> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    throw new Error('No active tab found');
+  }
+
+  // 确保 content script 已注入
+  await ensureContentScriptInjected(tab.id);
+
+  const response = await chrome.tabs.sendMessage(tab.id, {
+    type: 'TYPE_BY_INDEX',
+    payload: { index, text, clearFirst },
+  });
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to type in element by index');
+  }
+
+  return {
+    tagName: response.data.tagName,
+  };
+}
+
+/**
+ * 获取 content script 文件路径（从 manifest 中读取）
+ */
+function getContentScriptPath(): string {
+  const manifest = chrome.runtime.getManifest();
+  const contentScripts = manifest.content_scripts;
+  if (contentScripts && contentScripts.length > 0 && contentScripts[0].js) {
+    return contentScripts[0].js[0];
+  }
+  // 开发环境回退路径
+  return 'src/content/index.ts';
+}
+
+/**
+ * 确保 Content Script 已注入到指定标签页
+ * 如果未注入，尝试程序化注入
+ */
+async function ensureContentScriptInjected(tabId: number): Promise<void> {
+  try {
+    // 尝试发送一个简单消息来检测 content script 是否已加载
+    await chrome.tabs.sendMessage(tabId, { type: 'PING' });
+  } catch {
+    // Content script 未加载，尝试程序化注入
+    console.log('[Background] Content script not loaded, injecting...');
+    try {
+      const contentScriptPath = getContentScriptPath();
+      console.log('[Background] Injecting content script:', contentScriptPath);
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: [contentScriptPath],
+      });
+      // 等待 content script 初始化
+      await new Promise(resolve => setTimeout(resolve, 100));
+      console.log('[Background] Content script injected successfully');
+    } catch (injectError) {
+      console.error('[Background] Failed to inject content script:', injectError);
+      throw new Error(
+        'Failed to inject content script. This page may not support browser automation (e.g., chrome:// pages).'
+      );
+    }
+  }
+}
+
+/**
+ * 获取页面 DOM 树（紧凑格式）
+ */
+async function getDomTree(params: Record<string, unknown>): Promise<unknown> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    throw new Error('No active tab found');
+  }
+
+  // 确保 content script 已注入
+  await ensureContentScriptInjected(tab.id);
+
+  const response = await chrome.tabs.sendMessage(tab.id, {
+    type: 'GET_DOM_TREE',
+    payload: params,
+  });
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to get DOM tree');
+  }
+
+  return response.data;
+}
+
+/**
+ * 获取页面 DOM 树（完整 JSON 格式）
+ */
+async function getDomTreeFull(selector?: string): Promise<unknown> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    throw new Error('No active tab found');
+  }
+
+  // 确保 content script 已注入
+  await ensureContentScriptInjected(tab.id);
+
+  const response = await chrome.tabs.sendMessage(tab.id, {
+    type: 'GET_DOM_TREE_FULL',
+    payload: { selector },
+  });
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to get DOM tree');
+  }
+
+  return { tree: response.data, selector: selector || 'body' };
 }
 
 // 启动初始化

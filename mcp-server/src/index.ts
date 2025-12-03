@@ -125,10 +125,14 @@ This hides the overlay and re-enables all user input.`,
   },
   {
     name: 'browser_click',
-    description: 'Click on an element or at specific coordinates',
+    description: `Click on an element using index (recommended), CSS selector, or coordinates.
+
+RECOMMENDED: Use 'index' parameter with the element index from browser_get_dom_tree output.
+Example: After getting DOM tree showing "[5] button "Submit" @(100,200,80,32)", use index: 5 to click it.`,
     inputSchema: {
       type: 'object',
       properties: {
+        index: { type: 'number', description: 'Element index from browser_get_dom_tree output (recommended)' },
         selector: { type: 'string', description: 'CSS selector of the element to click' },
         x: { type: 'number', description: 'X coordinate to click at' },
         y: { type: 'number', description: 'Y coordinate to click at' },
@@ -137,11 +141,17 @@ This hides the overlay and re-enables all user input.`,
   },
   {
     name: 'browser_type',
-    description: 'Type text into an element or the currently focused element',
+    description: `Type text into an element using index (recommended), CSS selector, or the currently focused element.
+
+RECOMMENDED: Use 'index' parameter with the element index from browser_get_dom_tree output.
+Example: After getting DOM tree showing "[5] input placeholder="Search..." @(100,200,200,40)", use index: 5 to type into it.
+
+For contenteditable elements (rich text editors like Vditor), always use index parameter.`,
     inputSchema: {
       type: 'object',
       properties: {
         text: { type: 'string', description: 'The text to type' },
+        index: { type: 'number', description: 'Element index from browser_get_dom_tree output (recommended for reliable input)' },
         selector: { type: 'string', description: 'CSS selector of the element to type into (optional)' },
         clearFirst: { type: 'boolean', description: 'Clear the element before typing' },
       },
@@ -199,6 +209,74 @@ This hides the overlay and re-enables all user input.`,
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'browser_get_dom_tree',
+    description: `Get a compact, token-efficient DOM tree of the current page.
+
+Returns ONLY interactive elements (buttons, links, inputs, etc.) grouped by semantic regions.
+Each element includes a bounding box for understanding layout.
+
+Format: [index] tag [type=x] "text" → href (placeholder) @(x,y,width,height)
+
+Example output:
+# DOM Tree (12 interactive elements)
+
+## header @(0,0,1200,64)
+[0] a "Home" → / @(16,16,60,32)
+[1] button "Menu" @(1100,16,80,32)
+
+## main @(0,64,1200,800)
+[2] input (Search...) @(100,100,400,40)
+[3] button "Submit" @(520,100,80,40)
+[4] a "Learn more" → /about @(100,200,100,24)
+
+## aside @(900,64,300,800)
+[5] a "Dashboard" → /dashboard @(920,100,260,40)
+
+Use browser_click with 'index' parameter to interact with elements.
+Example: browser_click({ index: 3 }) clicks the "Submit" button.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        selector: {
+          type: 'string',
+          description: 'CSS selector to limit scope (e.g., "main", "#content", ".sidebar")'
+        },
+        maxDepth: {
+          type: 'number',
+          description: 'Maximum depth to traverse (default: 15)'
+        },
+        excludeTags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Additional tags to exclude (svg, script, style already excluded)'
+        },
+      },
+    },
+  },
+  {
+    name: 'browser_get_dom_tree_full',
+    description: `Get the complete DOM tree in full JSON format.
+
+Returns a structured tree of visible DOM elements including:
+- Element tag name, id, className
+- Text content (truncated to 200 chars)
+- Bounding rect (x, y, width, height)
+- Important attributes (href, src, alt, title, placeholder, type, name, value, role, aria-label)
+
+WARNING: This returns a large JSON structure that may consume many tokens.
+Use browser_get_dom_tree (compact format) for most use cases.
+Only use this when you need precise bounding rectangles or full attribute data.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        selector: {
+          type: 'string',
+          description: 'Optional CSS selector to get DOM tree of a specific element. If not provided, returns the entire body.'
+        },
+      },
     },
   },
   {
@@ -510,6 +588,8 @@ function getActionFromToolName(toolName: string): string {
     browser_extract: 'extract',
     browser_evaluate: 'evaluate',
     browser_get_page_info: 'get_page_info',
+    browser_get_dom_tree: 'get_dom_tree',
+    browser_get_dom_tree_full: 'get_dom_tree_full',
     browser_get_tabs: 'get_tabs',
     browser_switch_tab: 'switch_tab',
     browser_press_key: 'press_key',
