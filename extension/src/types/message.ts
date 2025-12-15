@@ -14,6 +14,8 @@ export type ContentMessage =
   | { type: 'TYPE_BY_INDEX'; payload: { index: number; text: string; clearFirst?: boolean } }
   // 在当前聚焦元素中输入
   | { type: 'TYPE_IN_FOCUSED'; payload: { text: string; clearFirst?: boolean } }
+  // 移除元素焦点
+  | { type: 'BLUR_ELEMENT'; payload?: { index?: number; selector?: string } }
   // 选择器操作
   | { type: 'GET_ELEMENT_INFO'; payload: { selector: string } }
   | { type: 'EXTRACT_ELEMENTS'; payload: { selector: string; multiple: boolean; attributes?: string[] } }

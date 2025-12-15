@@ -271,6 +271,15 @@ async function executeAction(action: string, params: Record<string, unknown>): P
       return { pressed: true, key };
     }
 
+    case 'blur': {
+      // 移除元素焦点
+      const result = await blurElement(
+        params.index as number | undefined,
+        params.selector as string | undefined
+      );
+      return result;
+    }
+
     case 'select_option': {
       const selector = params.selector as string;
       if (!selector) throw new Error('selector is required');
@@ -638,6 +647,36 @@ async function typeInFocused(
 
   return {
     tagName: response.data.tagName,
+  };
+}
+
+/**
+ * 移除元素焦点（blur）
+ */
+async function blurElement(
+  index?: number,
+  selector?: string
+): Promise<{ blurred: boolean; tagName?: string }> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    throw new Error('No active tab found');
+  }
+
+  // 确保 content script 已注入
+  await ensureContentScriptInjected(tab.id);
+
+  const response = await chrome.tabs.sendMessage(tab.id, {
+    type: 'BLUR_ELEMENT',
+    payload: { index, selector },
+  });
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to blur element');
+  }
+
+  return {
+    blurred: true,
+    tagName: response.data?.tagName,
   };
 }
 

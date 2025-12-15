@@ -375,6 +375,25 @@ Only use this when you need precise bounding rectangles or full attribute data.`
     },
   },
   {
+    name: 'browser_blur',
+    description: `Remove focus from the currently focused element.
+
+Use this after typing into an input field to close any dropdown menus, autocomplete suggestions, or popups that appear when the element has focus.
+
+Example workflow:
+1. browser_click({ index: 5 }) - click on search input
+2. browser_type({ text: "search query" }) - type text
+3. browser_blur() - remove focus to close dropdown suggestions
+4. Continue with other operations...`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        index: { type: 'number', description: 'Optional: Element index to blur. If not provided, blurs the currently focused element.' },
+        selector: { type: 'string', description: 'Optional: CSS selector of element to blur. If not provided, blurs the currently focused element.' },
+      },
+    },
+  },
+  {
     name: 'browser_select_option',
     description: 'Select an option from a dropdown/select element',
     inputSchema: {
@@ -672,6 +691,7 @@ function getActionFromToolName(toolName: string): string {
     browser_get_tabs: 'get_tabs',
     browser_switch_tab: 'switch_tab',
     browser_press_key: 'press_key',
+    browser_blur: 'blur',
     browser_select_option: 'select_option',
     browser_go_back: 'go_back',
     browser_go_forward: 'go_forward',

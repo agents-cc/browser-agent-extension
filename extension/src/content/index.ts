@@ -1273,6 +1273,54 @@ function typeInElementByIndex(
 }
 
 /**
+ * 移除元素焦点（blur）
+ * 可以通过 index、selector 或者直接 blur 当前聚焦的元素
+ */
+function blurElement(
+  index?: number,
+  selector?: string
+): ContentResponse<{ tagName: string }> {
+  try {
+    let el: Element | null = null;
+
+    if (index !== undefined) {
+      // 通过索引查找元素
+      el = getElementByIndex(index) || null;
+      if (!el) {
+        return { success: false, error: `Element with index ${index} not found. Please refresh DOM tree first.` };
+      }
+    } else if (selector) {
+      // 通过选择器查找元素
+      el = document.querySelector(selector);
+      if (!el) {
+        return { success: false, error: `Element not found: ${selector}` };
+      }
+    } else {
+      // 默认 blur 当前聚焦的元素
+      el = document.activeElement;
+      if (!el || el === document.body) {
+        return { success: true, data: { tagName: 'body' } }; // 没有元素聚焦，直接返回成功
+      }
+    }
+
+    const tagName = el.tagName.toLowerCase();
+
+    // 调用 blur 方法
+    (el as HTMLElement).blur();
+
+    return {
+      success: true,
+      data: { tagName },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to blur element',
+    };
+  }
+}
+
+/**
  * 在当前聚焦的元素中输入文本
  */
 function typeInFocusedElement(
@@ -1589,6 +1637,13 @@ chrome.runtime.onMessage.addListener(
         response = typeInFocusedElement(
           message.payload.text,
           message.payload.clearFirst
+        );
+        break;
+
+      case 'BLUR_ELEMENT':
+        response = blurElement(
+          message.payload?.index,
+          message.payload?.selector
         );
         break;
 
